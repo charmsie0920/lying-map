@@ -42,34 +42,16 @@ function buildRules() {
 
   return [
     {
-      title:"I", map:r1, correct:1,
-      options:[
-        "Each country shows a random country from the same continent",
-        "Each country's label is 3 places ahead in alphabetical order",
-        "Countries are ranked by area and labels shift forward by 3",
-        "Labels are assigned by the capital city's first letter"
-      ],
-      answer:"Alphabetical shift +3 — each country shows whatever name comes 3 places after it in the alphabetical list. Afghanistan shows Angola, Albania shows Argentina, and so on."
+      title:"I", map:r1, quarantineId: 250, // France
+      answer:"Alphabetical shift +3 — each country shows whatever name comes 3 places after it in the alphabetical list."
     },
     {
-      title:"II", map:r2, correct:2,
-      options:[
-        "Countries swap labels with their nearest geographic neighbour",
-        "Countries are ranked by land area — adjacent pairs have swapped labels",
-        "Countries ranked by population — adjacent pairs (1st & 2nd, 3rd & 4th…) have swapped labels",
-        "Labels are shuffled completely at random"
-      ],
-      answer:"Population pair swap — countries ranked by population size. The 1st and 2nd most populous swap labels, the 3rd and 4th swap, and so on down the list."
+      title:"II", map:r2, quarantineId: 124, // Canada
+      answer:"Population pair swap — countries ranked by population size. The 1st and 2nd most populous swap labels, the 3rd and 4th swap, and so on."
     },
     {
-      title:"III", map:r3, correct:1,
-      options:[
-        "Countries are labelled from south to north in alphabetical order",
-        "The alphabetical list is entirely reversed — first becomes last, last becomes first",
-        "Each country shows a name from the opposite hemisphere",
-        "Countries are sorted by year of independence in reverse"
-      ],
-      answer:"Reverse alphabetical — the full list is flipped. Afghanistan shows Zimbabwe's label, Albania shows Yemen's, Algeria shows Vietnam's, and so on."
+      title:"III", map:r3, quarantineId: 392, // Japan
+      answer:"Reverse alphabetical — the full list is flipped. The first alphabetical country shows the last, and vice versa."
     }
   ];
 }
@@ -84,7 +66,7 @@ export default function LyingMap() {
   const [clues, setClues] = useState([]);
   const [tooltip, setTooltip] = useState(null);
   const [hoverId, setHoverId] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const [inputValue, setInputValue] = useState("");
   const [scores, setScores] = useState([]);
   const svgRef = useRef(null);
 
@@ -117,6 +99,7 @@ export default function LyingMap() {
 
   const getColor = (id)=>{
     if(!COUNTRY_NAMES[id]) return "#101a10";
+    if(id === cur.quarantineId) return hoverId === id ? "#7a3a3a" : "#4a1c1c"; // Redacted aesthetic
     if(clickedIds.has(id)) return "#5c4010";
     if(id===hoverId) return "#2e5c2e";
     return "#1a3a1a";
@@ -129,19 +112,28 @@ export default function LyingMap() {
     const rect=svgRef.current.getBoundingClientRect();
     const sx=(e.clientX-rect.left)/rect.width*W;
     const sy=(e.clientY-rect.top)/rect.height*H;
-    setTooltip({x:Math.min(sx,W-160),y:Math.max(sy,30),fake:cur.map[id]||COUNTRY_NAMES[id]});
+    
+    let fakeLabel = cur.map[id] || COUNTRY_NAMES[id];
+    if (id === cur.quarantineId) fakeLabel = "[ DECRYPT THIS LABEL ]";
+    setTooltip({x:Math.min(sx,W-160),y:Math.max(sy,30),fake:fakeLabel});
   };
 
   const handleClick = (f)=>{
     const id=parseInt(f.id);
-    if(!COUNTRY_NAMES[id]||clickedIds.has(id)) return;
+    if(!COUNTRY_NAMES[id]) return;
+    if(id === cur.quarantineId) {
+        setPhase("guessing");
+        return;
+    }
+    if(clickedIds.has(id)) return;
     setClues(prev=>[...prev,{id,real:COUNTRY_NAMES[id],fake:cur.map[id]||COUNTRY_NAMES[id]}]);
   };
 
   const handleGuess = ()=>{
-    if(selected===null) return;
-    const correct=selected===cur.correct;
-    const pts=correct?Math.max(4-clues.length,1):0;
+    if(!inputValue.trim()) return;
+    const expected = cur.map[cur.quarantineId];
+    const correct = inputValue.trim().toLowerCase() === expected.toLowerCase();
+    const pts = correct ? Math.max(4 - clues.length, 1) : 0;
     setScores(prev=>[...prev,{correct,pts,clues:clues.length}]);
     setPhase("result");
   };
@@ -149,10 +141,12 @@ export default function LyingMap() {
   const nextRound = ()=>{
     if(round+1>=ROUNDS.length){setPhase("done");return;}
     setRound(r=>r+1);
-    setClues([]);setPhase("playing");setSelected(null);setTooltip(null);setHoverId(null);
+    setClues([]);setPhase("playing");setInputValue("");setTooltip(null);setHoverId(null);
   };
 
-  const reset = ()=>{setRound(0);setScores([]);setClues([]);setPhase("playing");setSelected(null);setTooltip(null);setHoverId(null);};
+  const reset = ()=>{
+    setRound(0);setScores([]);setClues([]);setPhase("playing");setInputValue("");setTooltip(null);setHoverId(null);
+  };
 
   const S = {
     wrap:{fontFamily:"Georgia,serif",color:"#d4c89a",background:"#060e06",minHeight:520},
@@ -170,7 +164,7 @@ export default function LyingMap() {
     btnPrimary:{padding:"8px 20px",background:"transparent",border:"1px solid #c9a84c",color:"#c9a84c",cursor:"pointer",fontFamily:"Georgia,serif",fontSize:12,letterSpacing:"0.08em"},
     panel:{width:240,borderLeft:"1px solid #162016",padding:"16px",background:"#030a03",flexShrink:0},
     panelTitle:{fontSize:9,letterSpacing:"0.2em",color:"#4a7a4a",textTransform:"uppercase",marginBottom:14},
-    optBase:{padding:"9px 11px",marginBottom:8,fontSize:12,lineHeight:1.5,transition:"border-color 0.1s"},
+    inputBase: {width: "100%", padding: "9px 11px", marginBottom: 12, fontSize: 13, background: "#020802", border: "1px solid #c9a84c", color: "#d4c89a", fontFamily: "monospace", boxSizing: "border-box", outline: "none"}
   };
 
   if(phase==="done") return (
@@ -178,10 +172,10 @@ export default function LyingMap() {
       <div style={S.label}>Expedition Complete</div>
       <div style={{fontSize:11,color:"#c9a84c",letterSpacing:"0.1em",marginBottom:4}}>Final Score</div>
       <div style={{fontSize:56,color:"#d4c89a",marginBottom:4}}>{totalScore}</div>
-      <div style={{fontSize:11,color:"#4a7a4a",marginBottom:28}}>out of {ROUNDS.length * 3} possible points</div>
+      <div style={{fontSize:11,color:"#4a7a4a",marginBottom:28}}>out of {ROUNDS.length * 4} possible points</div>
       {scores.map((s,i)=>(
         <div key={i} style={{fontSize:12,marginBottom:6,color:s.correct?"#6ab86a":"#b86a6a"}}>
-          Chapter {ROUNDS[i].title} — {s.correct?`Correct · +${s.pts} pt${s.pts!==1?"s":""}· ${s.clues} clue${s.clues!==1?"s":""} used`:"Incorrect · 0 pts"}
+          Chapter {ROUNDS[i].title} — {s.correct?`Correct · +${s.pts} pt${s.pts!==1?"s":""} · ${s.clues} clue${s.clues!==1?"s":""} used`:"Incorrect · 0 pts"}
         </div>
       ))}
       <button onClick={reset} style={{...S.btnPrimary,marginTop:28}}>Play Again</button>
@@ -203,8 +197,8 @@ export default function LyingMap() {
 
       <div style={S.hint}>
         {phase==="playing"
-          ? `Hover to reveal a country's false label · Click to log it as a clue · ${clues.length} clue${clues.length!==1?"s":""} gathered${clues.length>=2?" · ready to theorise":""}`
-          : "Review your evidence — then pick the rule and submit your verdict"}
+          ? `Hover to reveal labels · Click to log clues · Click the REDACTED anomaly on the map when ready to theorise`
+          : "Terminal Open — deduce the underlying rule to resolve the anomaly"}
       </div>
 
       <div style={S.body}>
@@ -223,8 +217,8 @@ export default function LyingMap() {
                 <path key={f.id}
                   d={pathGen(f)??""}
                   fill={getColor(parseInt(f.id))}
-                  stroke="#0c180c"
-                  strokeWidth={0.4}
+                  stroke={parseInt(f.id) === cur.quarantineId ? "#c97a7a" : "#0c180c"}
+                  strokeWidth={parseInt(f.id) === cur.quarantineId ? 1 : 0.4}
                   style={{cursor:COUNTRY_NAMES[parseInt(f.id)]?"crosshair":"default"}}
                   onMouseMove={e=>handleMouseMove(e,f)}
                   onMouseEnter={e=>handleMouseMove(e,f)}
@@ -233,8 +227,27 @@ export default function LyingMap() {
               ))}
               {tooltip&&(
                 <g pointerEvents="none">
-                  <rect x={tooltip.x+10} y={tooltip.y-24} width={tooltip.fake.length*7+18} height={22} fill="#050d05" stroke="#c9a84c" strokeWidth={0.5} rx={2}/>
-                  <text x={tooltip.x+19} y={tooltip.y-9} fill="#c9a84c" fontSize={11} fontFamily="Georgia,serif">{tooltip.fake}</text>
+                  <rect 
+                    x={tooltip.x + 5} 
+                    y={tooltip.y - 10} 
+                    width={tooltip.fake.length * 4 + 10} 
+                    height={12} 
+                    fill="#050d05" 
+                    stroke={hoverId === cur.quarantineId ? "#c97a7a" : "#c9a84c"} 
+                    strokeWidth={0.5} 
+                    rx={1.5}
+                  />
+                  <text 
+                    x={tooltip.x + 5 + (tooltip.fake.length * 4 + 10) / 2} 
+                    y={tooltip.y - 4} 
+                    fill={hoverId === cur.quarantineId ? "#c97a7a" : "#c9a84c"} 
+                    fontSize={7} 
+                    fontFamily="Georgia,serif" 
+                    textAnchor="middle" 
+                    dominantBaseline="central"
+                  >
+                    {tooltip.fake}
+                  </text>
                 </g>
               )}
             </svg>
@@ -258,7 +271,7 @@ export default function LyingMap() {
           {phase==="playing"&&clues.length>=2&&(
             <div style={{padding:"0 20px 16px"}}>
               <button style={S.btnPrimary} onClick={()=>setPhase("guessing")}>
-                I have a theory →
+                Identify the Anomaly →
               </button>
             </div>
           )}
@@ -266,32 +279,37 @@ export default function LyingMap() {
 
         {(phase==="guessing"||phase==="result")&&(
           <div style={S.panel}>
-            <div style={S.panelTitle}>The Rule Is…</div>
-            {cur.options.map((opt,i)=>{
-              let bg="transparent",border="1px solid #162016",col="#6a7a6a";
-              if(phase==="result"){
-                if(i===cur.correct){bg="#021802";border="1px solid #3a7a3a";col="#6ac96a";}
-                else if(i===selected&&i!==cur.correct){bg="#180202";border="1px solid #7a3a3a";col="#c97a7a";}
-              } else if(selected===i){border="1px solid #c9a84c";col="#d4c89a";}
-              return (
-                <div key={i} onClick={()=>phase==="guessing"&&setSelected(i)}
-                  style={{...S.optBase,border,background:bg,color:col,cursor:phase==="guessing"?"pointer":"default"}}>
-                  {opt}
-                </div>
-              );
-            })}
-
+            <div style={S.panelTitle}>Quarantine Terminal</div>
+            
             {phase==="guessing"&&(
-              <button onClick={handleGuess} disabled={selected===null}
-                style={{width:"100%",marginTop:6,padding:"9px",background:selected!==null?"#0d1f0d":"transparent",border:"1px solid #2a4a2a",color:selected!==null?"#c9a84c":"#2a4a2a",cursor:selected!==null?"pointer":"not-allowed",fontFamily:"Georgia,serif",fontSize:12,letterSpacing:"0.08em"}}>
-                Submit Verdict
-              </button>
+              <>
+                <div style={{fontSize: 11, color: "#6a7a6a", marginBottom: 12, lineHeight: 1.5}}>
+                  Target Territory: <strong style={{color:"#c9a84c"}}>{COUNTRY_NAMES[cur.quarantineId]}</strong><br/><br/>
+                  Enter the expected false label for this territory to prove the map's algorithm.
+                </div>
+                <input
+                  type="text"
+                  autoFocus
+                  style={S.inputBase}
+                  placeholder="> _"
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={e => { if(e.key === "Enter") handleGuess() }}
+                />
+                <button onClick={handleGuess} disabled={!inputValue.trim()}
+                  style={{width:"100%",marginTop:6,padding:"9px",background:inputValue.trim()?"#0d1f0d":"transparent",border:"1px solid #2a4a2a",color:inputValue.trim()?"#c9a84c":"#2a4a2a",cursor:inputValue.trim()?"pointer":"not-allowed",fontFamily:"Georgia,serif",fontSize:12,letterSpacing:"0.08em"}}>
+                  Submit Verdict
+                </button>
+              </>
             )}
 
             {phase==="result"&&(
-              <div style={{marginTop:10}}>
+              <div>
                 <div style={{fontSize:13,color:scores[scores.length-1]?.correct?"#6ac96a":"#c97a7a",marginBottom:10}}>
-                  {scores[scores.length-1]?.correct?`Correct — +${scores[scores.length-1]?.pts} pt${scores[scores.length-1]?.pts!==1?"s":""}`:"Incorrect."}
+                  {scores[scores.length-1]?.correct?`Correct — +${scores[scores.length-1]?.pts} pt${scores[scores.length-1]?.pts!==1?"s":""}`:"Anomaly Purge Failed."}
+                </div>
+                <div style={{fontSize:12, color: "#6a7a6a", marginBottom: 12}}>
+                  Expected output: <span style={{color:"#c9a84c"}}>{cur.map[cur.quarantineId]}</span>
                 </div>
                 <div style={{fontSize:11,color:"#4a7a4a",lineHeight:1.8,marginBottom:16}}>{cur.answer}</div>
                 <button onClick={nextRound} style={{...S.btnPrimary,width:"100%",boxSizing:"border-box"}}>
