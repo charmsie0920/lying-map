@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import * as d3 from "d3";
 
-// Architecture imports
+// Change your imports at the top
 import { W, H } from "../constants/config";
 import { COUNTRY_NAMES } from "../constants/countries";
-import { ROUNDS } from "../utils/rules";
+import { getRandomRounds } from "../utils/rules"; // <-- Changed
 import { S } from "../styles/lyingMapStyles";
 
 export default function LyingMap() {
@@ -12,6 +12,7 @@ export default function LyingMap() {
   const [ready, setReady] = useState(false);
   const [round, setRound] = useState(0);
   const [phase, setPhase] = useState("playing");
+  const [rounds, setRounds] = useState([]);
   const [clues, setClues] = useState([]);
   const [tooltip, setTooltip] = useState(null);
   const [hoverId, setHoverId] = useState(null);
@@ -20,6 +21,7 @@ export default function LyingMap() {
   const svgRef = useRef(null);
 
   useEffect(()=>{
+    setRounds(getRandomRounds(3));
     const load = ()=>{
       fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
         .then(r=>r.json())
@@ -27,6 +29,7 @@ export default function LyingMap() {
           setFeatures(window.topojson.feature(data, data.objects.countries).features);
           setReady(true);
         });
+
     };
     if(window.topojson){load();return;}
     const s=document.createElement("script");
@@ -42,10 +45,17 @@ export default function LyingMap() {
 
   const graticule = useMemo(()=>pathGen(d3.geoGraticule()()),[pathGen]);
 
-  const cur = ROUNDS[round];
+  // 1. Move the hook ABOVE the return statement
   const clickedIds = useMemo(()=>new Set(clues.map(c=>c.id)),[clues]);
+  
+  // 2. Standard derived state can also go up here
   const totalScore = scores.reduce((s,r)=>s+r.pts,0);
 
+  // 3. NOW we can safely do our early return, after all hooks are declared
+  if (rounds.length === 0) return null; 
+
+  // 4. And grab the current round
+  const cur = rounds[round];
   const getColor = (id)=>{
     if(!COUNTRY_NAMES[id]) return "#101a10";
     if(id === cur.quarantineId) return hoverId === id ? "#7a3a3a" : "#4a1c1c"; 
@@ -88,24 +98,31 @@ export default function LyingMap() {
   };
 
   const nextRound = ()=>{
-    if(round+1>=ROUNDS.length){setPhase("done");return;}
+    if(round+1>=rounds.length){setPhase("done");return;}
     setRound(r=>r+1);
     setClues([]);setPhase("playing");setInputValue("");setTooltip(null);setHoverId(null);
   };
 
   const reset = ()=>{
-    setRound(0);setScores([]);setClues([]);setPhase("playing");setInputValue("");setTooltip(null);setHoverId(null);
-  };
+      setRounds(getRandomRounds(3)); // <-- Deal new rules!
+      setRound(0);
+      setScores([]);
+      setClues([]);
+      setPhase("playing");
+      setInputValue("");
+      setTooltip(null);
+      setHoverId(null);
+    };
 
   if(phase==="done") return (
     <div style={{...S.wrap,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:0,padding:"48px 24px",textAlign:"center"}}>
       <div style={S.label}>Expedition Complete</div>
       <div style={{fontSize:11,color:"#c9a84c",letterSpacing:"0.1em",marginBottom:4}}>Final Score</div>
       <div style={{fontSize:56,color:"#d4c89a",marginBottom:4}}>{totalScore}</div>
-      <div style={{fontSize:11,color:"#4a7a4a",marginBottom:28}}>out of {ROUNDS.length * 4} possible points</div>
+      <div style={{fontSize:11,color:"#4a7a4a",marginBottom:28}}>out of {rounds.length * 4} possible points</div>
       {scores.map((s,i)=>(
         <div key={i} style={{fontSize:12,marginBottom:6,color:s.correct?"#6ab86a":"#b86a6a"}}>
-          Chapter {ROUNDS[i].title} — {s.correct?`Correct · +${s.pts} pt${s.pts!==1?"s":""} · ${s.clues} clue${s.clues!==1?"s":""} used`:"Incorrect · 0 pts"}
+          Chapter {rounds[i].title} — {s.correct?`Correct · +${s.pts} pt${s.pts!==1?"s":""} · ${s.clues} clue${s.clues!==1?"s":""} used`:"Incorrect · 0 pts"}
         </div>
       ))}
       <button onClick={reset} style={{...S.btnPrimary,marginTop:28}}>Play Again</button>
@@ -117,7 +134,7 @@ export default function LyingMap() {
       <div style={S.hdr}>
         <div>
           <div style={S.label}>The Lying Map · Chapter {cur.title}</div>
-          <div style={S.sub}>Round {round+1} of {ROUNDS.length}</div>
+          <div style={S.sub}>Round {round+1} of {rounds.length}</div>
         </div>
         <div style={{textAlign:"right"}}>
           <div style={S.label}>Score</div>
@@ -243,7 +260,7 @@ export default function LyingMap() {
                 </div>
                 <div style={{fontSize:11,color:"#4a7a4a",lineHeight:1.8,marginBottom:16}}>{cur.answer}</div>
                 <button onClick={nextRound} style={{...S.btnPrimary,width:"100%",boxSizing:"border-box"}}>
-                  {round+1<ROUNDS.length?"Next Chapter →":"See Final Score →"}
+                  {round+1<rounds.length?"Next Chapter →":"See Final Score →"}
                 </button>
               </div>
             )}
