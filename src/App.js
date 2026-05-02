@@ -1,5 +1,5 @@
 import './App.css';
-import LyingMap from './LyingMap';
+import LyingMap from './components/LyingMap';
 
 function App() {
   return (

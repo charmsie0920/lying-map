@@ -1,62 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import * as d3 from "d3";
 
-const W = 700, H = 380;
-
-const COUNTRY_NAMES = {
-  4:"Afghanistan",8:"Albania",12:"Algeria",24:"Angola",32:"Argentina",36:"Australia",40:"Austria",
-  50:"Bangladesh",56:"Belgium",68:"Bolivia",76:"Brazil",100:"Bulgaria",116:"Cambodia",
-  120:"Cameroon",124:"Canada",152:"Chile",156:"China",170:"Colombia",191:"Croatia",192:"Cuba",
-  208:"Denmark",218:"Ecuador",818:"Egypt",231:"Ethiopia",246:"Finland",250:"France",
-  276:"Germany",288:"Ghana",300:"Greece",320:"Guatemala",332:"Haiti",348:"Hungary",
-  356:"India",360:"Indonesia",364:"Iran",368:"Iraq",372:"Ireland",380:"Italy",
-  392:"Japan",404:"Kenya",408:"North Korea",410:"South Korea",434:"Libya",
-  484:"Mexico",504:"Morocco",524:"Nepal",528:"Netherlands",554:"New Zealand",
-  566:"Nigeria",578:"Norway",586:"Pakistan",604:"Peru",608:"Philippines",
-  616:"Poland",620:"Portugal",642:"Romania",643:"Russia",682:"Saudi Arabia",
-  710:"South Africa",724:"Spain",752:"Sweden",756:"Switzerland",764:"Thailand",
-  792:"Turkey",804:"Ukraine",826:"United Kingdom",840:"United States",
-  858:"Uruguay",704:"Vietnam",887:"Yemen",716:"Zimbabwe",800:"Uganda",862:"Venezuela",144:"Sri Lanka"
-};
-
-function buildRules() {
-  const entries = Object.entries(COUNTRY_NAMES).map(([id,name])=>({id:+id,name}));
-  const alpha = [...entries].sort((a,b)=>a.name.localeCompare(b.name));
-  const n = alpha.length;
-
-  const r1={};
-  alpha.forEach((c,i)=>{r1[c.id]=alpha[(i+3)%n].name;});
-
-  const popOrder=[156,356,840,360,586,76,566,50,643,231,800,484,608,818,704,364,276,792,764,250,826,710,170,12,32,368,804,124,504,682,604,862,288,887,524,408,120,24,642,152,144,528,218,320,716,116,68,332,192,56,752,620,434,578,554,191,372,208,246,756,40,300,348,410,392,404,616,4,8,36,724,380,858];
-  const pop=[...new Set(popOrder)].filter(id=>COUNTRY_NAMES[id]);
-  entries.forEach(c=>{if(!pop.includes(c.id))pop.push(c.id);});
-  const r2={};
-  for(let i=0;i<pop.length-1;i+=2){
-    const [a,b]=[pop[i],pop[i+1]];
-    if(COUNTRY_NAMES[a]&&COUNTRY_NAMES[b]){r2[a]=COUNTRY_NAMES[b];r2[b]=COUNTRY_NAMES[a];}
-  }
-  entries.forEach(c=>{if(!r2[c.id])r2[c.id]=c.name;});
-
-  const r3={};
-  alpha.forEach((c,i)=>{r3[c.id]=alpha[n-1-i].name;});
-
-  return [
-    {
-      title:"I", map:r1, quarantineId: 250, // France
-      answer:"Alphabetical shift +3 — each country shows whatever name comes 3 places after it in the alphabetical list."
-    },
-    {
-      title:"II", map:r2, quarantineId: 124, // Canada
-      answer:"Population pair swap — countries ranked by population size. The 1st and 2nd most populous swap labels, the 3rd and 4th swap, and so on."
-    },
-    {
-      title:"III", map:r3, quarantineId: 392, // Japan
-      answer:"Reverse alphabetical — the full list is flipped. The first alphabetical country shows the last, and vice versa."
-    }
-  ];
-}
-
-const ROUNDS = buildRules();
+// Architecture imports
+import { W, H } from "../constants/config";
+import { COUNTRY_NAMES } from "../constants/countries";
+import { ROUNDS } from "../utils/rules";
+import { S } from "../styles/lyingMapStyles";
 
 export default function LyingMap() {
   const [features, setFeatures] = useState([]);
@@ -99,7 +48,7 @@ export default function LyingMap() {
 
   const getColor = (id)=>{
     if(!COUNTRY_NAMES[id]) return "#101a10";
-    if(id === cur.quarantineId) return hoverId === id ? "#7a3a3a" : "#4a1c1c"; // Redacted aesthetic
+    if(id === cur.quarantineId) return hoverId === id ? "#7a3a3a" : "#4a1c1c"; 
     if(clickedIds.has(id)) return "#5c4010";
     if(id===hoverId) return "#2e5c2e";
     return "#1a3a1a";
@@ -146,25 +95,6 @@ export default function LyingMap() {
 
   const reset = ()=>{
     setRound(0);setScores([]);setClues([]);setPhase("playing");setInputValue("");setTooltip(null);setHoverId(null);
-  };
-
-  const S = {
-    wrap:{fontFamily:"Georgia,serif",color:"#d4c89a",background:"#060e06",minHeight:520},
-    hdr:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px 10px",borderBottom:"1px solid #162016"},
-    label:{fontSize:9,letterSpacing:"0.25em",color:"#4a7a4a",textTransform:"uppercase",marginBottom:3},
-    sub:{fontSize:12,color:"#6a7a6a"},
-    scoreVal:{fontSize:22,color:"#c9a84c",lineHeight:1},
-    hint:{padding:"6px 20px 8px",fontSize:10,letterSpacing:"0.06em",color:"#4a7a4a",borderBottom:"1px solid #0e180e"},
-    body:{display:"flex"},
-    mapWrap:{flex:1,position:"relative"},
-    clueBox:{margin:"0 20px 12px",padding:"10px 14px",background:"#030a03",border:"1px solid #162016"},
-    clueTitle:{fontSize:9,letterSpacing:"0.2em",color:"#4a7a4a",textTransform:"uppercase",marginBottom:8},
-    clueGrid:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 12px"},
-    clueItem:{fontSize:11,display:"flex",gap:5,alignItems:"center"},
-    btnPrimary:{padding:"8px 20px",background:"transparent",border:"1px solid #c9a84c",color:"#c9a84c",cursor:"pointer",fontFamily:"Georgia,serif",fontSize:12,letterSpacing:"0.08em"},
-    panel:{width:240,borderLeft:"1px solid #162016",padding:"16px",background:"#030a03",flexShrink:0},
-    panelTitle:{fontSize:9,letterSpacing:"0.2em",color:"#4a7a4a",textTransform:"uppercase",marginBottom:14},
-    inputBase: {width: "100%", padding: "9px 11px", marginBottom: 12, fontSize: 13, background: "#020802", border: "1px solid #c9a84c", color: "#d4c89a", fontFamily: "monospace", boxSizing: "border-box", outline: "none"}
   };
 
   if(phase==="done") return (
